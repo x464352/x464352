@@ -1,0 +1,830 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head><title>Mi página web.</title>
+<link rel="stylesheet" href="/web.css" type="text/css">
+<style>
+textarea, input {
+background: black;
+border: 1px solid green;
+color: lime;
+font-family: monospace;
+}
+</style></head>
+<body bgcolor="Black" text="Lime" link="Lime" vlink="Lime">
+<script type="text/javascript">
+function showEditor(show) {
+document.getElementById('content').style.display = show?'none':'block';
+document.getElementById('editor').style.display = show?'block':'none';
+}
+</script>
+<pre>
+|<a href="/">Portada</a>|<!--<a href="/blog">-->Blog<!--</a>-->|<!--<a href="/space">-->Space<!--</a>-->|
+
+<div id="content" ondblclick="showEditor(true)" style="display:block">[<a href="/wiki.lua/msc">&lt;-msc</a>]
+
+In this document, we propose a backtracking based method for partial breaking
+simple substitution ciphers. Even though the resulting key may be partially
+incorrect, it can be used as input to other methods to improve their success
+rate.
+
+The method is introduced alongside an example for easier understanding.
+
+First text: first 1000 characters from "Don Quixote" by "Miguel de Cervantes",
+written in Early Modern Spanish in 1605:
+
+capituloprimeroquetratadelacondicionyejerciciodelfamosohidalgodonquijotedelamanc
+haenunlugardelamanchadecuyonombrenoquieroacordarmenohamuchotiempoqueviviaunhidal
+godelosdelanzaenastilleroadargaantiguarocinflacoygalgocorredorunaolladealgomasva
+caquecarnerosalpiconlasmasnochesduelosyquebrantoslossabadoslantejaslosviernesalg
+unpalominodea~adiduralosdomingosconsumianlastrespartesdesuhaciendaelrestodellaco
+ncluiansayodevelartecalzasdevelludoparalasfiestasconsuspantuflosdelomesmoylosdia
+sdeentresemanasehonrabaconsuvelloridelomasfinoteniaensucasaunaamaquepasabadelosc
+uarentayunasobrinaquenollegabaalosveinteyunmozodecampoyplazaqueasiensillabaelroc
+incomotomabalapodaderafrisabalaedaddenuestrohidalgoconloscincuentaa~oseradecompl
+exionreciasecodecarnesenjutoderostrogranmadrugadoryamigodelacazaquierendecirquet
+eniaelsobrenombredequijadaoquesadaqueenestohayalgunadiferenciaenlosautoresquedes
+tecasoescribenaunqueporconjeturasverosimilessedejaentenderquesellamabaquejanaper
+oestoimportapocoanuestrocuentobastaqueen
+
+Second text: first 1000 characters from "El Astillero" by "Juan Carlos Onetti",
+in Rioplatense Spanish in 1961.
+
+sersantamariaihacecincoa~oscuandoelgobernadordecidioexpulsaralarsenojuntacadaver
+esdelaprovinciaalguienprofetizoenbromaeimprovisandosuretornolaprolongaciondelrei
+nadodeciendiaspaginadiscutidayapasionanteaunqueyacasiolvidadadenuestrahistoriaci
+udadanapocoslooyeronyesseguroqueelmismolarsenenfermoentoncesporladerrotaescoltad
+oporlapoliciaolvidoenseguidalafraserenuncioatodaesperanzaquesevincularaconsuregr
+esoanosotrosdetodosmodoscincoa~osdespuesdelaclausuradeaquellaanecdotalarsenbajou
+nama~anaenlaparadadelosomnibusesquellegandecolonpusounmomentolavalijaenelsuelopa
+raestirarhacialosnudilloslospu~osdesedadelacamisayempezoaentrarensantamariapocod
+espuesdeterminarlalluvialentoybalanceandosetalvezmasgordomasbajoconfundibleydoma
+doenaparienciatomoelaperitivoenelmostradordelbernapersiguiendocalmosolosojosdelp
+atronhastaobtenerunsilenciosoreconocimientoalmorzoallisolitarioyrodeadoporlascam
+isasacuadrosdeloscamionerosahoraestosdisputabanalferrocarrillascargashastaelrosa
+rioylospuebloslitoralesdelnorteparecianh
+
+For text1 and text2 respectively we build two matrices Oe, Od that approximate
+the probability of finding the character α followed immediately by β for any
+characters α, β in the alphabet, this pair of characters is known as digraphs.
+We do this approximation by counting such occurrences divided by the number of
+digraphs in the text (the text length-1).
+
+It is interesting to note that when working with Markovian generators (as in
+Markov Chains), it is customary for the transition matrices to be estimated by
+counting the digraphs as well; however instead of using the probability
+P(i-th character being β AND (i-1)-th character being α), the probability
+P(i-th character being β GIVEN THAT (i-1)-th character is α) is used instead.
+The reason we use just the probability of the digraphs and not the conditional
+probability is to account for the frecuency of the characters.
+
+function count_occurrences(text)
+  local occurrences2 = {}
+  local previousc
+  local step = 1/(#text - 1)
+  for c in text:lower():gsub('[^a-z~]', ''):gmatch'.' do
+    if previousc then
+      occurrences2[previousc] = occurrences2[previousc] or {}
+      occurrences2[previousc][c] = (occurrences2[previousc][c] or 0) + step
+    end
+    previousc = c
+  end
+  return occurrences2
+end
+
+Later on in this document the n characters of the alphabet will be numerated
+{1..n} according to a sequence which we will call "items", so, by convention
+the probability of finding the digraph α β will be located on the i-th row,
+j-th column of the matrices where α==items[i] and β==items[j].
+
+Then, after sorting the values of each row of Oe and Od in decreasing order,
+it's interesting to see the comparison between each of the rows of Oe and Od.
+Because neither text is encrypted, we are to expect significant similarities
+on each row.  Here for each row we plot in red the values for the first tex,
+in green for the second one, and yellow where they overlap.
+
+a: <img alt="image" width="100" height="46" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAXAgMAAAA0MPSnAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAUklEQVQYlY3JwQ1AQBgF4SlNCQ4KUoLD6mFZBx2skhQgIeJPvHeQmNuXYY4m7gJ1E9WDV+XcVbEeNYgGRD2ijCqZUI2mZOpMrYlvFVM2Lab1ry4GsTUTCB/M+wAAAABJRU5ErkJggg=="/>  b: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAKklEQVQImWNYtTI0NNSBAQpWTYUzQTxkDsNKZA7DGhTeHhTeBhReAzIHAH5LCD2fQyuKAAAAAElFTkSuQmCC"/>  c: <img alt="image" width="100" height="18" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAJAgMAAAAN7JdMAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAL0lEQVQImWNYBQZ/GCAAxF7JwIDEa0Di/WFAgFVTkDgMSwOQeUuQOQwTUHgNyBwAanQRqWXET4UAAAAASUVORK5CYII="/>  d: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAKUlEQVQImWNYhQArAxhA1P7///8wgAFIjAEOQPIIsJQBGUxA4TXg5gEAUF4VKAKcXZIAAAAASUVORK5CYII="/>  e: <img alt="image" width="100" height="46" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAXAgMAAAA0MPSnAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAARElEQVQYlY3IsQ0AEBBA0T+aERQGsoT+ChKhMaKGuCsk97v3Ga8MDwmlgpJwVBK3e49a1KpoiVFwi7+mUTcSt5ZR9moDbQktzZ0EvOEAAAAASUVORK5CYII="/>  
+f: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAGklEQVQImWNYyYAMVqDw1qDwFuDhbWAgEgAAKuID7u+DGNYAAAAASUVORK5CYII="/>  g: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAJElEQVQImWNYtTSAAQFWTWBA5iFLMaxA5jDsQeFtQOE1MOAEAPmvBmg3QZ39AAAAAElFTkSuQmCC"/>  h: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAADdAAD//wAAfy+uAAAAGklEQVQImWNYtTKEAQGWMjDg5C1B4TUwkAUAck8EFo2/fLgAAAAASUVORK5CYII="/>  i: <img alt="image" width="100" height="38" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAATAgMAAACvobaxAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAN0lEQVQYlWNYBQT7GWAAyFnKgMxbgMxbfQCZtx6F18CAxNvAgMz7gId3AJm3mgE3bwGZvAZieQC1fBtNka+p8wAAAABJRU5ErkJggg=="/>  j: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAGUlEQVQImWNYdYABCaxB5jAsQOFNYKACAAA4kQNHrxzcRgAAAABJRU5ErkJggg=="/>  
+k: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAQMAAACBED45AAAAA1BMVEUAAACnej3aAAAADElEQVQImWNgoAwAAABAAAHiKVFZAAAAAElFTkSuQmCC"/>  l: <img alt="image" width="100" height="36" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAASAgMAAABk/WUUAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAPElEQVQImWNYBQWr/39gYGAAsUJDGaAAyJkaGgDnrWRAAqsmoPAOoPCQOQzrieatwcNbgMLbQCavAZkDAEVXGlt+QulHAAAAAElFTkSuQmCC"/>  m: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAKElEQVQImWNYBQQMcLBq1QQGZN4BZN5qBmTeAmTeUgcUHjKHoQGZAwBhPQtKy/H67wAAAABJRU5ErkJggg=="/>  n: <img alt="image" width="100" height="44" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAWAgMAAAD/bCcCAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAQUlEQVQYlWNYBQL//zBAAIjTwMCA4K1mQOKtP4DMW8OAzNuDwnNA4TEg85ai8JA5DCvx8Jbg4S2gCm8CCq8BNw8ADPseHS4jRR8AAAAASUVORK5CYII="/>  ~: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAE0lEQVQImWNYz4AMJqDwGhioDgCsYQHAq9FSzAAAAABJRU5ErkJggg=="/>  
+o: <img alt="image" width="100" height="42" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAVAgMAAAB5+FWsAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAATElEQVQYlX3HsQ2AMAwF0RstIzASS9CnDSA5A0TCg1EgFCG+i+Sqe+xf5kDfQu/9beFXSYhORJcHoWqq41aZqzKqNBFjWVCbqAatYz33qijWTC7eGgAAAABJRU5ErkJggg=="/>  p: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAAD//wAAqgD5K9HjAAAAJUlEQVQImWMIDc1awAAHoaEZDEi8VQ24eUi6GBgikDkMAQw4AQBL3Qdibog60gAAAABJRU5ErkJggg=="/>  q: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAADdAAD//wAAfy+uAAAAFElEQVQImWNYtWrV1FAgcGCgCwAAwF0EKIjA4IIAAAAASUVORK5CYII="/>  r: <img alt="image" width="100" height="36" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAASAgMAAABk/WUUAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAOklEQVQImWNYBQYrQ0MZQADMWX+AgQHB+4/grYYxQbz9SByGVR8YcPOQFTKsYMDNW0AV3gYUXgNuHgCWLx7I3K9qUgAAAABJRU5ErkJggg=="/>  s: <img alt="image" width="100" height="42" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAVAgMAAAB5+FWsAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAASklEQVQYlWNYBQIMMADi7Efmrf+DzNv/AYm3+gADEm8/Cm8PAzLvADJvPQMybwIKrwGF54DMW4nCW4rMYVhCNG8BCm8DCq8BNw8AntwiNzTILx8AAAAASUVORK5CYII="/>  
+t: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAALElEQVQImWNYBQL/DzBAAJC9/wMDA4K3hwGZx4DEW38AibfSAYnD0MCAkwcAj2IReb22QvoAAAAASUVORK5CYII="/>  u: <img alt="image" width="100" height="38" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAATAgMAAACvobaxAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAOElEQVQYlWNYBQJLQ0NDHRiAAMg+wAAHq1YzIIFVK1B4C1B4Dci8lcgchiUovAVU4U3Aw2sgjwcAUnQUnRrLknIAAAAASUVORK5CYII="/>  v: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAH0lEQVQImWNYteoPAwKs2oPEYViPzGFYgMKbwEAWAAAIUwWWuEaIbAAAAABJRU5ErkJggg=="/>  w: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAQMAAACBED45AAAAA1BMVEUAAACnej3aAAAADElEQVQImWNgoAwAAABAAAHiKVFZAAAAAElFTkSuQmCC"/>  x: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAAD//wAAqgD5K9HjAAAAE0lEQVQImWNIYEAGqDwHPDwyAQB0cAFB3UCw9wAAAABJRU5ErkJggg=="/>  
+y: <img alt="image" width="100" height="30" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAPAgMAAADbtXRRAAAACVBMVEUAAADdAAD//wAAfy+uAAAAHklEQVQImWNYGcCABJYicxiWoPAWUIU3gUxeA7E8AEOKCSOfIEkuAAAAAElFTkSuQmCC"/>  z: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAADdAAD//wAAfy+uAAAAFklEQVQImWNYFcCABFai8BoYcPPIBAAWngL0E/YPmwAAAABJRU5ErkJggg=="/>  
+
+It is at this point that we suggest a first visual approach to breaking
+subtitution cipher: to find the matching graphs so that to minimize the red
+and green areas, maximizing the yellow ones.
+
+By plotting the same set of graphs for only the first 100 characters of each
+text, a loss in precision is seen, eg: 'q' in red matches 't' in green more
+than 'q' in green.  An implementation that finds the best match won't
+necessarily find the correct key.  This shows why this may not be a very good
+algorithm for short texts.
+
+a: <img alt="image" width="100" height="20" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAKAgMAAACLeOXiAAAACVBMVEUAAAD//wAAqgD5K9HjAAAAI0lEQVQImWMIhYEABiBAYkJ4WatWLSCO58AAB8TzgEY0wDkAhvkW7d0Zv1EAAAAASUVORK5CYII="/>  b: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAAD//wAAqgD5K9HjAAAAEElEQVQImWPIWrWqgYF+AAD11AI/GYf02QAAAABJRU5ErkJggg=="/>  c: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAJklEQVQImWNYBQMLGIAASE8NDQ1ggAAgr4EBDlB5+///P8BAOgAAPk0Sofna0YEAAAAASUVORK5CYII="/>  d: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAI0lEQVQImWNYBQZLQ0EggAHI3P///wcGCADyGhjgAJVHJgAAQ9gRQpIJgkoAAAAASUVORK5CYII="/>  e: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAJUlEQVQImWNYBQNLQ0MDGCDMBQwQAGTu////A4LXwAAH+Hh4AAApkhlbdVqMsAAAAABJRU5ErkJggg=="/>  
+f: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAADdAAD//wAAfy+uAAAAEElEQVQImWOYGhrqwEA/AACkwgGAWiFZjQAAAABJRU5ErkJggg=="/>  g: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAQMAAACBED45AAAABlBMVEUAAAD//wCI23BQAAAAEUlEQVQImWP4/4MBDGA0iQAA5ioD75U6LfAAAAAASUVORK5CYII="/>  h: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAADdAAD//wAAfy+uAAAAF0lEQVQImWNYtWpVAwMcTA0NdWCgJQAAoQMD/u2yiOAAAAAASUVORK5CYII="/>  i: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAADdAAD//wAAfy+uAAAAHUlEQVQImWNYBQYLGCAAg9fAAAf4eFNDQx0YiAEA2Q8SMrDoGv4AAAAASUVORK5CYII="/>  j: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAADdAAD//wAAfy+uAAAAF0lEQVQImWNYtWpVAwMcTA0NdWCgJQAAoQMD/u2yiOAAAAAASUVORK5CYII="/>  
+k: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAQMAAACBED45AAAAA1BMVEUAAACnej3aAAAADElEQVQImWNgoAwAAABAAAHiKVFZAAAAAElFTkSuQmCC"/>  l: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAKElEQVQImWNYBQZLQ0MDGIAAyNz///8HBggA8hoY4GBqaKgDLh7RAADtrBDDC06enAAAAABJRU5ErkJggg=="/>  m: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAADdAAD//wAAfy+uAAAAHElEQVQImWNYtWrV1NDQAAYIADIdGOAAlUcVAACL5QaMYzd++AAAAABJRU5ErkJggg=="/>  n: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAI0lEQVQImWNYBQYLGCAAyNz///8HBK+BAQ7w8aaGhjowEAMAOrETQWylTzQAAAAASUVORK5CYII="/>  ~: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAAD//wAAqgD5K9HjAAAAEElEQVQImWPIWrWqgYF+AAD11AI/GYf02QAAAABJRU5ErkJggg=="/>  
+o: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAADdAAD//wAAfy+uAAAAIElEQVQImWNYBQZLQ0MDGIAAyJwKZUJ4DQxwQC4PBQAARRcVn80z9tQAAAAASUVORK5CYII="/>  p: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAQMAAACBED45AAAABlBMVEUAAAD//wCI23BQAAAAEUlEQVQImWP4/4MBDGA0iQAA5ioD75U6LfAAAAAASUVORK5CYII="/>  q: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAADdAAD//wAAfy+uAAAAEElEQVQImWOYGgoCAQx0AgAVNgKPpjksQwAAAABJRU5ErkJggg=="/>  r: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAAD//wAAqgD5K9HjAAAAIUlEQVQImWMIDQ3NWrVqAQMEAHkODHBAPA9oRAMuHgoAAG9JDNbV91kpAAAAAElFTkSuQmCC"/>  s: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAAD//wAAqgD5K9HjAAAAH0lEQVQImWMIDQ3NWrVqAQMEAJmrUHgNDHCAyiMTAABRAgw2GzFYowAAAABJRU5ErkJggg=="/>  
+t: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAADFBMVEUAAADdAAD//wAAqgCq6anbAAAAHklEQVQImWNYtWrV/v//PzBAwNTQUAcGOMDHIxMAANI6CilPJx0tAAAAAElFTkSuQmCC"/>  u: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAADdAAD//wAAfy+uAAAAGUlEQVQImWNYtWpVAwMcEM+bGhrqwEA6AADEXwt4IZIhTwAAAABJRU5ErkJggg=="/>  v: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAAD//wAAqgD5K9HjAAAAE0lEQVQImWPIWrWqgQEOUHk0AADL4wR9T40grgAAAABJRU5ErkJggg=="/>  w: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAQMAAACBED45AAAAA1BMVEUAAACnej3aAAAADElEQVQImWNgoAwAAABAAAHiKVFZAAAAAElFTkSuQmCC"/>  x: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAAD//wAAqgD5K9HjAAAAEElEQVQImWPIWrWqgYF+AAD11AI/GYf02QAAAABJRU5ErkJggg=="/>  
+y: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAgMAAADGsETpAAAACVBMVEUAAADdAAD//wAAfy+uAAAAEElEQVQImWOYGhrqwEA/AACkwgGAWiFZjQAAAABJRU5ErkJggg=="/>  z: <img alt="image" width="100" height="16" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAIAQMAAACBED45AAAAA1BMVEUAAACnej3aAAAADElEQVQImWNgoAwAAABAAAHiKVFZAAAAAElFTkSuQmCC"/>  
+
+######## IMPLEMENTATION ########
+
+Next we present the implementation of the algorithm that searches through the
+whole key space, looking for the "best" key according a certain criteria. To do
+so efficiently it uses backtracking with branch pruning.
+
+Since the key space may be quite big, ≈2^83 for 25 character alphabets,
+traversing it completely would take quite some time even for today's computers
+(a few million years if checking one key per nanosecond). Thus it's essential to
+use a decent pruning strategy.
+
+Luckily for us, the substitution cipher has several bad characteristics (from a
+security point of view) that we can exploit for partial or total key recovery
+under the ciphertext-only attack model. In particular each character is encrypted
+independently of the others, using the same key for all of them and without any
+initialization vectors. This means:
+
+* The character frequencies of the plain text are retained after encryption.
+* The same can be said for digraphs, n-grams or even words in general as well.
+
+For the proposed method, both properties will be used.
+
+For this method to work, we need the probability of digraphs in the language
+believed to be the encrypted text in. To estimate those probabilities we may as
+well count the digraphs them in a suitable long text (a corpus).
+
+We then calculate the key that minimizes sum_i weights[i][key[i]], where
+weights[i][j] = sum_k |Oes[i][k] - Ods[j][k]|. Oes and Ods are matrices
+with the same content as Oe and Od respectively, but with values in the each row
+sorted in decreasing order.  Oe and Od contain the probability of finding any
+digraph in the encrypted text and target language (or corpus) respectively.
+
+The reason we sort the values in each row of Oes &amp; Ods is that it allows us to
+compute the weights previously to the backtracking phase and use it at any
+moment; if we were to use the corresponding index to calculate the weights
+instead, we would need the whole key since the weight would be:
+sum_k |Oe[i][k] - Od[j][key[k]]|, plus it could vary for each key.
+
+As a general rule when using backtracking, it is recommended to try to choose the
+best local alternative at each step so that the best possible score can be
+reached as soon as possible. To do so we use the following heuristics:
+
+1. The alternatives for the most common letters are choosen first because they
+   have a greater impact on the accumulated weight, for this purpose there's the
+   list items.  At the first recursion level this algorithm chooses the mapping
+   for the character items[1], at depth i the choice for items[i] is made.
+
+2. In the best_matches matrix we keep for each "i" from Oe, which are the 
+   best "j" to choose from Od, it is queried whenever a choice for a key entry
+   has to be selected.  Specifically, the i-th row contains the values j={1..n}
+   sorted according to weight[i][j].
+
+Finally there's the condition used for pruning, for this we need to calculate
+the matrix extra_weights, where extra_weights[i][j] is a lower bound of the cost
+of not having the element "j" selected as the mapping of any of the characters
+1 .. i from Oe (items[1], .., items[i]).  It is calculated as:
+min({weights[k][j] for all k = i..n} ∪ {∞}).
+
+The condition for pruning is thus: weight + weights[i][j] + ew &lt; best_weight,
+where ew is sum_{j: was not selected as value for 1..i} of extra_weights[i][j].
+
+Next, a reference implementation in lua:
+
+function find_key(items, Oe, Od)
+  local best_key = {}
+  local best_weight = tonumber 'inf'
+  local n = #items
+  local available_e, available_d = {}, {}
+  for i = 1, n do
+    available_d[items[i]] = i
+  end
+  -- calculate the weights
+  local weights, best_matches_for_i = {}, {}
+  do
+    -- but first define Oes,Ods as Oe,Od with the values within each
+    -- row sorted in decreasing order.
+    local Oes, Ods = {}, {}
+    for i = 1, n do
+      Oes[i], Ods[i] = {}, {}
+      for k = 1, n do if k ~= i then
+        table.insert(Oes[i], (Oe[items[i]] or {})[items[k]])
+        table.insert(Ods[i], (Od[items[i]] or {})[items[k]])
+      end end
+      table.sort(Oes[i], function(a,b) return a&gt;b end)
+      table.sort(Ods[i], function(a,b) return a&gt;b end)
+    end
+    for i = 1, n do
+      weights[i] = {}
+      local Oesi = Oes[i] or {}
+      best_matches_for_i[i] = {}
+      for j = 1, n do
+        local Odsj = Ods[j] or {}
+        local sum = 0
+        for k = 1, math.max(#Oesi, #Odsj) do
+          sum = sum + math.abs((Oesi[k] or 0) - (Odsj[k] or 0))
+        end
+        weights[i][j] = sum
+        best_matches_for_i[i][j] = j
+      end
+      table.sort(best_matches_for_i[i], function(j1, j2)
+        return weights[i][j1] &lt; weights[i][j2]
+      end)
+    end
+  end
+  -- calculate the cost of not choosing at depth i+1 the element j
+  local extra_weights = {}
+  for i = n, 1, -1 do
+    extra_weights[i] = {}
+    for j = 1, n do
+      extra_weights[i][j] = math.min(weights[i][j], (extra_weights[i+1] or {})[j] or tonumber 'inf')
+    end
+  end
+
+  local iterations = 0
+  local key = {}
+  local function recurse(weight, i)
+    iterations = iterations + 1
+    if i &gt; n then
+      best_weight = weight
+      for e, d in pairs(key) do best_key[e] = d end
+      -- print(iterations, os.clock(), 'new best weight: '..best_weight)
+      return
+    end
+    local e = items[i]-- choose item to decrypt at this point
+    for jindex, j in ipairs(best_matches_for_i[i]) do
+      local d = items[j]
+      if available_d[d] then
+        available_d[d] = nil
+        local new_weight = weight + weights[i][j]
+        local extra_weight = 0
+        for _, j2 in pairs(available_d) do
+          extra_weight = extra_weight + extra_weights[i][j2]
+        end
+        if new_weight + extra_weight &lt; best_weight then
+          key[e] = d
+          recurse(new_weight, i+1)
+          key[e] = nil
+        end
+        available_d[d] = j
+      end
+    end
+    return
+  end
+  recurse(0, 1)
+  return {best_key = best_key, iterations = iterations, best_weight = best_weight}
+end
+
+
+function find_key_text(text1, text2)
+  local oe = count_occurrences(text1:lower():gsub('[^a-z~]', ''))
+  local od = count_occurrences(text2:lower():gsub('[^a-z~]', ''))
+  -- alphabet: set with the union of the characters used in text1 and text2
+  -- count1: alphabet-&gt;integer: how many times each character appears in text1
+  -- items: list of the chars in alphabet sorted (in decreasing order) by
+  --        frequency in text1.
+  local alphabet, count1, items = {}, {}, {}
+  for c in pairs(oe) do
+    alphabet[c] = 1
+    count1[c] = select(2, text1:gsub(c, ''))
+  end
+  for c in pairs(od) do alphabet[c] = 1 end
+  for c in pairs(alphabet) do items[#items+1] = c end
+  table.sort(items, function(a, b)
+    return (count1[a] or 0) &gt; (count1[b] or 0)
+  end)
+  return find_key(items, oe, od)
+end
+
+######## RESULTS ########
+
+By applying this algorithm to unencrypted text (which can be seen as text
+encrypted using the identity permutation as the key), it is easier to see in
+which cases the algorithm is performing correctly, since as the returned key
+gets closer to the correct one (the identity), the number of cycles increases
+while the average length of such cycles decreases.  For an alphabet of size n,
+the average length is n/#cycles; with only the identity having n cycles of
+length 1 each.
+
+Key obtained by taking the first 100 characters of each text (8874633 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a x d s e j b p n h   c l o f r v t u ~ g i y   q m  
+  5 C C   C 5 C 5 C   C C 5 C 5 C 5 5 C 5 5 C   5 C    (order in hex C=12)
+
+Key obtained by taking the first 200 characters of each text (110679941 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a f l d n y t p o b   r u s h i x ~ c v g e j   q m z
+  A 3   A A 2 5 2 A   3 A A 5 2 5 5 3 A 2 A A   5 A    (in hex A=10)
+
+Key obtained by taking the first 500 characters of each text (1017651 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a f c l e b v m i j   d t n h o g q r s p u y   z ~ x
+  2   2   2 8 8       2 8   8   8       8   8   2 8 2
+
+Key obtained by taking the first 1000 characters of each text (21031 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a v c t e z m g i j   d u n f o b q r s p l h   x y ~
+  A   A   3 A A       A A   3   A       A A A       3  (in hex A=10)
+
+Key obtained by taking the first 1500 characters of each text (10573 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a p c d e f g h i z   r m n x o b q u s t l v   j y ~
+  2               4   3     4   2   3     3     4   4
+
+Key obtained by taking the first 2000 characters of each text (11720 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a p c d e f v h i j   u m n x o b q r s t l g   ~ y z
+  2         2         2     2   2         2 2   2    
+
+Key obtained by taking the first 2500 characters of each text (3223 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a m c d e f g v i j   l p n ~ o b q r s t u h   x y z
+  3           2         3       3           2        
+
+1  7         7 7   7   2 7 2 2   7     2   2 7   2    35603
+
+It should be noted that the resulting running time grows linearly with the
+number of calls to the inner function "recurse".  As a reference, on a Intel(R)
+Core(TM) i7-3537U CPU @ 2.00GHz it takes about 1.5s to handle a million recurse
+calls.
+
+In this case the number of calls stabilizes near 250 once we use 66000
+or more characters from each text. Following is a plot of such number of calls
+over how many (thousand) characters were used.
+
+<img alt="image" width="560" height="220" style="image-rendering:optimizeSpeed;image-rendering:-moz-crisp-edges;image-rendering:-o-crisp-edges;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:optimize-contrast;-ms-interpolation-mode:nearest-neighbor;border:solid 1px green" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAARgAAABuBAMAAAAOrBHXAAAAD1BMVEUAAAAxcIz//wAAqgAsmOHIyMZ4AAACs0lEQVRoge2bW1bEIAyGK2UhHNzB6AJ4YP9rMoRLuYS2esYmD/wdcYaS9jPcUga3rZJ2+xenDhLvIdk3EdIupNwwgQK8okV4xjvgiQc/jA4wXhCMh0RENelYTfEDMww03OSVIG7PNFowMy2YmRbMKOziYmCchHhG4qwdqbhh1qx9BrNm7UstmJkWzEy74SaoJMsz3ABZEkbgLI0wihnCxeUQEXNTefD3MoIrDCFEhJ05hBDRgFcIcUsLZqZ9M9wIh4R5RpAWzCgZ00GRkOkAR2CcEbhhyirEiWeUteYRmGoVAuOZVx1hvD5DBqavT2sfiWeqVYgj7lThhR/RKwbe/ruDZiGENcoAht3C6yHNQgi1sU9TXQM2JeFQC6NKwqIAYy5Lqesi79CNQc/Yp2gCzOmdwkmLo6BSsZfBG+jyINX49Owiv4A5l8rdzEC3N8ZaeBOp4FfiUTAcKZv0d6wCc+8Kqm3d4CIFhwkoJdMmT1+Ml8hd1D1r36PpZPCH6H+hTouvSDXFywo5Ury1P4dp1twrmkOIY9ZuSW5e5j3KIUQVz1i2oS6FEOgY9uAqhRBtDGwYYVIIwb5YJH8VgnmZMSnBGFaILInVJEMLZiYpMCKetbPCbMAOI3IVQgRMDiHEwAwhBCeMxC8y2OOZVtzV1GjBzLRgZlowhER8458kZp8ebqd0EuamvBfCC/HM2k45hZEYQrDDtNJyTkB1zeKe7ydOUHAfRPLYCakwsqTxKXfMrbvcIR8NOiMcuQaDXLAvjAU9eWO/jbfM/5SQB6PqQtGgM0pPhJ2Br44hm76x1yRMmUl7dDTojKJnBoMwyo+FMds78sbeUTD4Z/rBMwgDBp0RlhsN6MLRIWN2yqVRHFFNG11N2lEGcYcDVZjKjufIBnxs/uxyPdEmS+NtDejCs2x+/QBwWCxqGH3ujwAAAABJRU5ErkJggg=="/>
+
+From this point we can refine the obtained key via further methods in order
+to improve the results, in fact it can be easily modified so that it returns
+multiple keys, keys that can be used as starting points of the evolutionary
+algorithm previously developed (*).
+
+(*) The one used for the decryption of the book cover.</div><div id="editor" style="display:none"><form method="post"><textarea name="content" rows="24" cols="80">[[[msc|&lt;-msc]]]
+
+In this document, we propose a backtracking based method for partial breaking
+simple substitution ciphers. Even though the resulting key may be partially
+incorrect, it can be used as input to other methods to improve their success
+rate.
+
+The method is introduced alongside an example for easier understanding.
+
+First text: first 1000 characters from &quot;Don Quixote&quot; by &quot;Miguel de Cervantes&quot;,
+written in Early Modern Spanish in 1605:
+
+````runlua
+-- text1 = io.lines'donki-plain.txt'():sub(20506,23505)
+text1 = [[
+capituloprimeroquetratadelacondicionyejerciciodelfamosohidalgodonquijotedelamanchaenunlugardelamanchadecuyonombrenoquieroacordarmenohamuchotiempoqueviviaunhidalgodelosdelanzaenastilleroadargaantiguarocinflacoygalgocorredorunaolladealgomasvacaquecarnerosalpiconlasmasnochesduelosyquebrantoslossabadoslantejaslosviernesalgunpalominodea~adiduralosdomingosconsumianlastrespartesdesuhaciendaelrestodellaconcluiansayodevelartecalzasdevelludoparalasfiestasconsuspantuflosdelomesmoylosdiasdeentresemanasehonrabaconsuvelloridelomasfinoteniaensucasaunaamaquepasabadeloscuarentayunasobrinaquenollegabaalosveinteyunmozodecampoyplazaqueasiensillabaelrocincomotomabalapodaderafrisabalaedaddenuestrohidalgoconloscincuentaa~oseradecomplexionreciasecodecarnesenjutoderostrogranmadrugadoryamigodelacazaquierendecirqueteniaelsobrenombredequijadaoquesadaqueenestohayalgunadiferenciaenlosautoresquedestecasoescribenaunqueporconjeturasverosimilessedejaentenderquesellamabaquejanaperoestoimportapocoanuestrocuentobastaqueenlanarraciondelnosesalgaunpuntodelaverdadespuesdesaberqueestesobredichohidalgolosratosqueestabaociosoqueeranlosmasdela~osedabaaleerlibrosdecaballeriascontantaaficionygustoqueolvidocasidetodopuntoelejerciciodelacazayaunlaadministraciondesuhaciendayllegoatantosucuriosidadydesatinoenestoquevendiomuchashanegasdetierradesembraduraparacomprarlibrosdecaballeriasenqueleeryasillevoasucasatodoscuantospudohaberdellosydetodosningunoslepareciantanbiencomolosquecompusoelfamosofelicianodesilvaporquelaclaridaddesuprosayaquellasentricadasrazonessuyaslepareciandeperlasymascuandollegabaaleeraquellosrequiebrosycartasdedesafiosdondeenmuchasparteshallabaescritolarazondelasinrazonqueamirazonsehacedetalmaneramirazonenflaquecequeconrazonmequejodelavuestrafermosuraytambiencuandoleialosaltoscielosquedevuestradivinidaddivinamenteconlasestrellasosfortificanyoshacenmerecedoradelmerecimientoquemerecelavuestragrandezaconestasrazonesperdiaelpobrecaballeroeljuicioydesvelabaseporentenderlasydesentra~arleselsentidoquenoselosacaranilasentendieraelmesmoaristotelessiresucitaraparasoloellonoestabamuybienconlasheridasquedonbelianisdabayrecebiaporqueseimaginabaqueporgrandesmaestrosquelehubiesencuradonodejariadetenerelrostroytodoelcuerpollenodecicatricesyse~alesperocontodoalababaensuautoraquelacabarsulibroconlapromesadeaquellainacabableaventuraymuchasveceslevinodeseodetomarlaplumaydallefinalpiedelaletracomoalliseprometeysindudaalgunalohicierayaunsalieraconellosiotrosmayoresycontinuospensamientosnoseloestorbarantuvomuchasvecescompetenciaconelcuradesulugarqueerahombredoctograduadoensiguenzasobrecualhabiasidomejorcaballeropalmerindeingalaterraoamadisdegaulamasmaesenicolasbarberodelmesmopueblodeciaqueningunollegabaalcaballerodelfeboyquesialgunoselepodiacomparareradongalaorhermanodeamadisdegaulaporqueteniamuyacomodadacondicionparatodoquenoeracaballeromelindrosonitanlloroncomosuhermanoyqueenlodelavalentianoleibaenzagaenresolucionelseenfrascotantoensuleturaqueselepasabanlasnochesleyendodeclaroenclaroylosdiasdeturbio]]
+return text1:sub(1,1000):gsub(string.rep('.', 80), '%0\n')
+````
+
+Second text: first 1000 characters from &quot;El Astillero&quot; by &quot;Juan Carlos Onetti&quot;,
+in Rioplatense Spanish in 1961.
+
+````runlua
+-- text2 = io.lines'elastillero-plain.txt'():sub(1782,4781)
+text2 = [[
+sersantamariaihacecincoa~oscuandoelgobernadordecidioexpulsaralarsenojuntacadaveresdelaprovinciaalguienprofetizoenbromaeimprovisandosuretornolaprolongaciondelreinadodeciendiaspaginadiscutidayapasionanteaunqueyacasiolvidadadenuestrahistoriaciudadanapocoslooyeronyesseguroqueelmismolarsenenfermoentoncesporladerrotaescoltadoporlapoliciaolvidoenseguidalafraserenuncioatodaesperanzaquesevincularaconsuregresoanosotrosdetodosmodoscincoa~osdespuesdelaclausuradeaquellaanecdotalarsenbajounama~anaenlaparadadelosomnibusesquellegandecolonpusounmomentolavalijaenelsueloparaestirarhacialosnudilloslospu~osdesedadelacamisayempezoaentrarensantamariapocodespuesdeterminarlalluvialentoybalanceandosetalvezmasgordomasbajoconfundibleydomadoenaparienciatomoelaperitivoenelmostradordelbernapersiguiendocalmosolosojosdelpatronhastaobtenerunsilenciosoreconocimientoalmorzoallisolitarioyrodeadoporlascamisasacuadrosdeloscamionerosahoraestosdisputabanalferrocarrillascargashastaelrosarioylospuebloslitoralesdelnorteparecianhabersidoparidosasirobustosveintea~erosgritonesysinpasadojuntoconelcaminodemacadaminauguradounosmesesatrassecambiodespuesaunamesaproximaalapuertayalaventanaparatomarelcafecongotassonmuchoslosqueaseguranhaberlovistoenaquelmediodiadefinesdeoto~oalgunosinsistenensuactitudderesucitadoenlosmodosconqueexageradamentecasiencaricaturaintentoreproducirlaperezalaironiaelatenuadodesdendelasposturasylasexpresionesdecincoa~osantesrecuerdansuafanporserdescubiertoeidentificadoelpardededosansiosolistoparasubirhastaelaladelsombrerofrenteacualquiersintomadesaludoacualquierojoqueinsinuaralasorpresadelreencuentrootrosalrevessiguenviendoloapaticoyprocazacodadoenlamesaelcigarrilloenlabocaparaleloalahumedaddelaavenidaartigasmirandolascarasqueentrabansinotropropositoquelacontabilidadsentimentaldelealtadesydesviosregistrandounasyotrasconlamismafacilbrevesonrisaconlascontraccionesinvoluntariasdelabocapagoelalmuerzoconlaexageradapropinadesiemprereconquistosupiezaenlapensiondeencimadelbernaydespuesdelasiestamasverdaderomenosnotableporhabersealiviadodelavalijasepusoarecorrersantamariapesadotaconeandosinoirsepaseandoantelagenteypuertasyvidrierasdecomerciossuairedeforasteroincuriosocaminosobreloscuatrocostadosylasdosdiagonalesdelaplazacomosiestuvieraresolviendoelproblemadeirdesdeahastabempleandotodoslossenderosysinpisarsuspasosanterioresfueyvolviofrentealaverjanegrarecienpintadadelaiglesiaentroenlaboticaqueseguiasiendodebarthemaslentoquenuncamascaracteristicomasalertaparapesarsecomprarjabonydentifricocontemplarcomoalaimprevistafotodeunamigoelcartelqueanunciabaelfarmaceuticoestaraausentehastalasinsinuodespuesunaexcursionalosalrededoresfuebajandoaumentandoelbalanceodelcuerpotresocuatrodelascuadrasquellevanalaconvergenciadelcaminodelacostaconelquevaalacoloniaporladescuidadacalleencuyofinalestalacasitaconbalconescelestesalquiladaahorapormorentzeldentistalovieronmastardecercadelmolinoderedondoconloszapatoshundidosenelpastomojadofumandocontraunarbolgolpeolasmanosenlagranjademanterocomprounvasodelecheypan]]
+return text2:sub(1,1000):gsub(string.rep('.', 80), '%0\n')
+````
+
+For text1 and text2 respectively we build two matrices Oe, Od that approximate
+the probability of finding the character α followed immediately by β for any
+characters α, β in the alphabet, this pair of characters is known as digraphs.
+We do this approximation by counting such occurrences divided by the number of
+digraphs in the text (the text length-1).
+
+It is interesting to note that when working with Markovian generators (as in
+Markov Chains), it is customary for the transition matrices to be estimated by
+counting the digraphs as well; however instead of using the probability
+P(i-th character being β AND (i-1)-th character being α), the probability
+P(i-th character being β GIVEN THAT (i-1)-th character is α) is used instead.
+The reason we use just the probability of the digraphs and not the conditional
+probability is to account for the frecuency of the characters.
+
+````runlua
+code = [[
+function count_occurrences(text)
+  local occurrences2 = {}
+  local previousc
+  local step = 1/(#text - 1)
+  for c in text:lower():gsub('[^a-z~]', ''):gmatch'.' do
+    if previousc then
+      occurrences2[previousc] = occurrences2[previousc] or {}
+      occurrences2[previousc][c] = (occurrences2[previousc][c] or 0) + step
+    end
+    previousc = c
+  end
+  return occurrences2
+end]]
+eval(code)
+return code
+````
+
+Later on in this document the n characters of the alphabet will be numerated
+{1..n} according to a sequence which we will call &quot;items&quot;, so, by convention
+the probability of finding the digraph α β will be located on the i-th row,
+j-th column of the matrices where α==items[i] and β==items[j].
+
+Then, after sorting the values of each row of Oe and Od in decreasing order,
+it's interesting to see the comparison between each of the rows of Oe and Od.
+Because neither text is encrypted, we are to expect significant similarities
+on each row.  Here for each row we plot in red the values for the first tex,
+in green for the second one, and yellow where they overlap.
+
+````runlua
+local Oe = count_occurrences(text1)
+local Od = count_occurrences(text2)
+local Oes, Ods = {}, {}
+local maxvalue = 0
+local items = { &quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;, &quot;g&quot;, &quot;h&quot;, &quot;i&quot;, &quot;j&quot;, &quot;k&quot;, &quot;l&quot;,
+                &quot;m&quot;, &quot;n&quot;, &quot;~&quot;, &quot;o&quot;, &quot;p&quot;, &quot;q&quot;, &quot;r&quot;, &quot;s&quot;, &quot;t&quot;, &quot;u&quot;, &quot;v&quot;, &quot;w&quot;,
+                &quot;x&quot;, &quot;y&quot;, &quot;z&quot; }
+local n = #items
+for i = 1, n do
+  Oes[i], Ods[i] = {}, {}
+  for k = 1, n do if k ~= i then
+    table.insert(Oes[i], (Oe[items[i]] or {})[items[k]])
+    table.insert(Ods[i], (Od[items[i]] or {})[items[k]])
+  end end
+  table.sort(Oes[i], function(a,b) return a&gt;b end)
+  table.sort(Ods[i], function(a,b) return a&gt;b end)
+  maxvalue = math.max(maxvalue, Oes[i][1] or 0, Ods[i][1] or 0)
+end
+local width = 50
+local multiplier = width / maxvalue
+local function plot(row1, row2)
+  local h = math.max(#row1, #row2)
+  local img = image(width, h)
+  for y = 0, h-1 do
+    local v1 = math.floor((row1[y+1] or 0)*multiplier)
+    local v2 = math.floor((row2[y+1] or 0)*multiplier)
+    img:color(1)
+    for x = 0, math.min(v1, v2) do img:plot(x, y) end
+    img:color(v1 &gt; v2 and 3 or 8) -- red for row1
+    for x = math.min(v1, v2)+1, math.max(v1, v2) do img:plot(x, y) end
+  end
+  return img:render()
+end
+local str = ''
+for i, c in ipairs(items) do
+  str = str .. c .. ': ' .. plot(Oes[i], Ods[i]) .. '  '
+  if i % 5 == 0 then str = str .. '\n' end
+end
+return str
+````
+
+It is at this point that we suggest a first visual approach to breaking
+subtitution cipher: to find the matching graphs so that to minimize the red
+and green areas, maximizing the yellow ones.
+
+By plotting the same set of graphs for only the first 100 characters of each
+text, a loss in precision is seen, eg: 'q' in red matches 't' in green more
+than 'q' in green.  An implementation that finds the best match won't
+necessarily find the correct key.  This shows why this may not be a very good
+algorithm for short texts.
+
+````runlua
+local Oe = count_occurrences(text1:sub(1,100))
+local Od = count_occurrences(text2:sub(1,100))
+local Oes, Ods = {}, {}
+local maxvalue = 0
+local items = { &quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;, &quot;g&quot;, &quot;h&quot;, &quot;i&quot;, &quot;j&quot;, &quot;k&quot;, &quot;l&quot;,
+                &quot;m&quot;, &quot;n&quot;, &quot;~&quot;, &quot;o&quot;, &quot;p&quot;, &quot;q&quot;, &quot;r&quot;, &quot;s&quot;, &quot;t&quot;, &quot;u&quot;, &quot;v&quot;, &quot;w&quot;,
+                &quot;x&quot;, &quot;y&quot;, &quot;z&quot; }
+local n = #items
+for i = 1, n do
+  Oes[i], Ods[i] = {}, {}
+  for k = 1, n do if k ~= i then
+    table.insert(Oes[i], (Oe[items[i]] or {})[items[k]])
+    table.insert(Ods[i], (Od[items[i]] or {})[items[k]])
+  end end
+  table.sort(Oes[i], function(a,b) return a&gt;b end)
+  table.sort(Ods[i], function(a,b) return a&gt;b end)
+  maxvalue = math.max(maxvalue, Oes[i][1] or 0, Ods[i][1] or 0)
+end
+local width = 50
+local multiplier = width / maxvalue
+local function plot(row1, row2)
+  local h = math.max(#row1, #row2)
+  local img = image(width, h)
+  for y = 0, h-1 do
+    local v1 = math.floor((row1[y+1] or 0)*multiplier)
+    local v2 = math.floor((row2[y+1] or 0)*multiplier)
+    img:color(1)
+    for x = 0, math.min(v1, v2) do img:plot(x, y) end
+    img:color(v1 &gt; v2 and 3 or 8) -- red for row1
+    for x = math.min(v1, v2)+1, math.max(v1, v2) do img:plot(x, y) end
+  end
+  return img:render()
+end
+local str = ''
+for i, c in ipairs(items) do
+  str = str .. c .. ': ' .. plot(Oes[i], Ods[i]) .. '  '
+  if i % 5 == 0 then str = str .. '\n' end
+end
+return str
+````
+
+######## IMPLEMENTATION ########
+
+Next we present the implementation of the algorithm that searches through the
+whole key space, looking for the &quot;best&quot; key according a certain criteria. To do
+so efficiently it uses backtracking with branch pruning.
+
+Since the key space may be quite big, ≈2^83 for 25 character alphabets,
+traversing it completely would take quite some time even for today's computers
+(a few million years if checking one key per nanosecond). Thus it's essential to
+use a decent pruning strategy.
+
+Luckily for us, the substitution cipher has several bad characteristics (from a
+security point of view) that we can exploit for partial or total key recovery
+under the ciphertext-only attack model. In particular each character is encrypted
+independently of the others, using the same key for all of them and without any
+initialization vectors. This means:
+
+* The character frequencies of the plain text are retained after encryption.
+* The same can be said for digraphs, n-grams or even words in general as well.
+
+For the proposed method, both properties will be used.
+
+For this method to work, we need the probability of digraphs in the language
+believed to be the encrypted text in. To estimate those probabilities we may as
+well count the digraphs them in a suitable long text (a corpus).
+
+We then calculate the key that minimizes sum_i weights[i][key[i]], where
+weights[i][j] = sum_k |Oes[i][k] - Ods[j][k]|. Oes and Ods are matrices
+with the same content as Oe and Od respectively, but with values in the each row
+sorted in decreasing order.  Oe and Od contain the probability of finding any
+digraph in the encrypted text and target language (or corpus) respectively.
+
+The reason we sort the values in each row of Oes &amp; Ods is that it allows us to
+compute the weights previously to the backtracking phase and use it at any
+moment; if we were to use the corresponding index to calculate the weights
+instead, we would need the whole key since the weight would be:
+sum_k |Oe[i][k] - Od[j][key[k]]|, plus it could vary for each key.
+
+As a general rule when using backtracking, it is recommended to try to choose the
+best local alternative at each step so that the best possible score can be
+reached as soon as possible. To do so we use the following heuristics:
+
+1. The alternatives for the most common letters are choosen first because they
+   have a greater impact on the accumulated weight, for this purpose there's the
+   list items.  At the first recursion level this algorithm chooses the mapping
+   for the character items[1], at depth i the choice for items[i] is made.
+
+2. In the best_matches matrix we keep for each &quot;i&quot; from Oe, which are the 
+   best &quot;j&quot; to choose from Od, it is queried whenever a choice for a key entry
+   has to be selected.  Specifically, the i-th row contains the values j={1..n}
+   sorted according to weight[i][j].
+
+Finally there's the condition used for pruning, for this we need to calculate
+the matrix extra_weights, where extra_weights[i][j] is a lower bound of the cost
+of not having the element &quot;j&quot; selected as the mapping of any of the characters
+1 .. i from Oe (items[1], .., items[i]).  It is calculated as:
+min({weights[k][j] for all k = i..n} ∪ {∞}).
+
+The condition for pruning is thus: weight + weights[i][j] + ew &lt; best_weight,
+where ew is sum_{j: was not selected as value for 1..i} of extra_weights[i][j].
+
+Next, a reference implementation in lua:
+
+````runlua
+code = [=[
+function find_key(items, Oe, Od)
+  local best_key = {}
+  local best_weight = tonumber 'inf'
+  local n = #items
+  local available_e, available_d = {}, {}
+  for i = 1, n do
+    available_d[items[i]] = i
+  end
+  -- calculate the weights
+  local weights, best_matches_for_i = {}, {}
+  do
+    -- but first define Oes,Ods as Oe,Od with the values within each
+    -- row sorted in decreasing order.
+    local Oes, Ods = {}, {}
+    for i = 1, n do
+      Oes[i], Ods[i] = {}, {}
+      for k = 1, n do if k ~= i then
+        table.insert(Oes[i], (Oe[items[i]] or {})[items[k]])
+        table.insert(Ods[i], (Od[items[i]] or {})[items[k]])
+      end end
+      table.sort(Oes[i], function(a,b) return a&gt;b end)
+      table.sort(Ods[i], function(a,b) return a&gt;b end)
+    end
+    for i = 1, n do
+      weights[i] = {}
+      local Oesi = Oes[i] or {}
+      best_matches_for_i[i] = {}
+      for j = 1, n do
+        local Odsj = Ods[j] or {}
+        local sum = 0
+        for k = 1, math.max(#Oesi, #Odsj) do
+          sum = sum + math.abs((Oesi[k] or 0) - (Odsj[k] or 0))
+        end
+        weights[i][j] = sum
+        best_matches_for_i[i][j] = j
+      end
+      table.sort(best_matches_for_i[i], function(j1, j2)
+        return weights[i][j1] &lt; weights[i][j2]
+      end)
+    end
+  end
+  -- calculate the cost of not choosing at depth i+1 the element j
+  local extra_weights = {}
+  for i = n, 1, -1 do
+    extra_weights[i] = {}
+    for j = 1, n do
+      extra_weights[i][j] = math.min(weights[i][j], (extra_weights[i+1] or {})[j] or tonumber 'inf')
+    end
+  end
+
+  local iterations = 0
+  local key = {}
+  local function recurse(weight, i)
+    iterations = iterations + 1
+    if i &gt; n then
+      best_weight = weight
+      for e, d in pairs(key) do best_key[e] = d end
+      -- print(iterations, os.clock(), 'new best weight: '..best_weight)
+      return
+    end
+    local e = items[i]-- choose item to decrypt at this point
+    for jindex, j in ipairs(best_matches_for_i[i]) do
+      local d = items[j]
+      if available_d[d] then
+        available_d[d] = nil
+        local new_weight = weight + weights[i][j]
+        local extra_weight = 0
+        for _, j2 in pairs(available_d) do
+          extra_weight = extra_weight + extra_weights[i][j2]
+        end
+        if new_weight + extra_weight &lt; best_weight then
+          key[e] = d
+          recurse(new_weight, i+1)
+          key[e] = nil
+        end
+        available_d[d] = j
+      end
+    end
+    return
+  end
+  recurse(0, 1)
+  return {best_key = best_key, iterations = iterations, best_weight = best_weight}
+end
+]=]
+eval(code)
+
+return code
+````
+````runlua
+code = [[
+function find_key_text(text1, text2)
+  local oe = count_occurrences(text1:lower():gsub('[^a-z~]', ''))
+  local od = count_occurrences(text2:lower():gsub('[^a-z~]', ''))
+  -- alphabet: set with the union of the characters used in text1 and text2
+  -- count1: alphabet-&gt;integer: how many times each character appears in text1
+  -- items: list of the chars in alphabet sorted (in decreasing order) by
+  --        frequency in text1.
+  local alphabet, count1, items = {}, {}, {}
+  for c in pairs(oe) do
+    alphabet[c] = 1
+    count1[c] = select(2, text1:gsub(c, ''))
+  end
+  for c in pairs(od) do alphabet[c] = 1 end
+  for c in pairs(alphabet) do items[#items+1] = c end
+  table.sort(items, function(a, b)
+    return (count1[a] or 0) &gt; (count1[b] or 0)
+  end)
+  return find_key(items, oe, od)
+end]]
+eval(code)
+
+return code
+````
+
+######## RESULTS ########
+
+By applying this algorithm to unencrypted text (which can be seen as text
+encrypted using the identity permutation as the key), it is easier to see in
+which cases the algorithm is performing correctly, since as the returned key
+gets closer to the correct one (the identity), the number of cycles increases
+while the average length of such cycles decreases.  For an alphabet of size n,
+the average length is n/#cycles; with only the identity having n cycles of
+length 1 each.
+
+Key obtained by taking the first 100 characters of each text (8874633 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a x d s e j b p n h   c l o f r v t u ~ g i y   q m  
+  5 C C   C 5 C 5 C   C C 5 C 5 C 5 5 C 5 5 C   5 C    (order in hex C=12)
+
+Key obtained by taking the first 200 characters of each text (110679941 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a f l d n y t p o b   r u s h i x ~ c v g e j   q m z
+  A 3   A A 2 5 2 A   3 A A 5 2 5 5 3 A 2 A A   5 A    (in hex A=10)
+
+Key obtained by taking the first 500 characters of each text (1017651 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a f c l e b v m i j   d t n h o g q r s p u y   z ~ x
+  2   2   2 8 8       2 8   8   8       8   8   2 8 2
+
+Key obtained by taking the first 1000 characters of each text (21031 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a v c t e z m g i j   d u n f o b q r s p l h   x y ~
+  A   A   3 A A       A A   3   A       A A A       3  (in hex A=10)
+
+Key obtained by taking the first 1500 characters of each text (10573 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a p c d e f g h i z   r m n x o b q u s t l v   j y ~
+  2               4   3     4   2   3     3     4   4
+
+Key obtained by taking the first 2000 characters of each text (11720 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a p c d e f v h i j   u m n x o b q r s t l g   ~ y z
+  2         2         2     2   2         2 2   2    
+
+Key obtained by taking the first 2500 characters of each text (3223 calls):
+a b c d e f g h i j k l m n ~ o p q r s t u v w x y z
+a m c d e f g v i j   l p n ~ o b q r s t u h   x y z
+  3           2         3       3           2        
+
+````runlua
+-- since this function is way too slow for the server where this wiki is run,
+-- I've chosen to copy the output outside this runlua tag; however you can re-
+-- run it if you want.
+local function f(i, len)
+  local res1, res2, res3 = {}, {}, {}
+  local res = find_key_text(text1:sub(i,i+len-1), text2:sub(1,30000))
+  local key=res.best_key
+  for c in ('abcdefghijklmn~opqrstuvwxyz'):gmatch '.' do
+    res1[#res1 + 1], res2[#res2 + 1] = c, key[c] or ' '
+    local x, order = key[c], 1
+    while x and x ~= c do x, order = key[x], order + 1 end
+    res3[#res3 + 1] = order &gt; 1 and ('%X'):format(order) or ' '
+  end
+  return i .. table.concat(res3, ' ') .. res.iterations
+--[[
+  return 'Key obtained by taking the first ' .. len ..
+         ' characters of each text:\n' .. table.concat(res1, ' ') .. '\n' ..
+         table.concat(res2, ' ') .. '\n' .. table.concat(res3, ' ')]]
+end
+return table.concat({--[[f(100), f(500), f(1000),]] f(1, 1000)}, '\n\n')
+````
+
+It should be noted that the resulting running time grows linearly with the
+number of calls to the inner function &quot;recurse&quot;.  As a reference, on a Intel(R)
+Core(TM) i7-3537U CPU @ 2.00GHz it takes about 1.5s to handle a million recurse
+calls.
+
+In this case the number of calls stabilizes near 250 once we use 66000
+or more characters from each text. Following is a plot of such number of calls
+over how many (thousand) characters were used.
+
+````runlua
+local log10 = math.log(10)
+local img = image(280, 110):color(8):rect(29, 0, 1, 100)
+for y = 0, 99, 99/6 do img:rect(30, y, 250, 1) end
+img:color(1)
+for i, v in ipairs{21031, 11720, 3426, 816, 200, 1064, 461, 350, 336, 158,
+    139, 134, 60, 68, 105, 176, 253, 146, 210, 637, 728, 787, 770, 882, 699,
+    784, 772, 533, 568, 865, 707, 1048, 955, 874, 746, 707, 161, 492, 601,
+    957, 810, 810, 815, 1028, 1033, 1145, 1155, 1150, 1173, 1169, 1155, 1009,
+    921, 934, 961, 858, 1028, 951, 947, 970, 891, 865, 876, 923, 892, 331, 346,
+    303, 374, 288, 365, 375, 349, 347, 305, 418, 436, 377, 383, 314, 306, 311,
+    314, 314, 297, 332, 299, 317, 332, 350, 294, 293, 267, 265, 274, 264, 282,
+    288, 280, 290, 311, 313, 298, 307, 294, 315, 304, 272, 315, 313, 313, 313,
+    313, 327, 319, 320, 330, 327, 295, 327, 297, 291, 307, 256, 226, 280, 260,
+    260, 284, 258, 247, 234, 229, 246, 234, 256, 254, 231, 243, 302, 286, 283,
+    275, 244, 246, 258, 307, 278, 286, 271, 271, 267, 271, 271, 272, 275, 275,
+    272, 275, 276, 268, 268, 267, 268, 247, 250, 288, 252, 252, 194, 191, 194,
+    196, 194, 198, 222, 197, 217, 226, 217, 243, 243, 246, 219, 217, 215, 212,
+    212, 221, 210, 211, 210, 206, 219, 221, 217, 221, 221, 221, 221, 223, 223,
+    222, 225, 225, 224, 224, 210, 210, 219, 212, 218, 218, 216, 216, 220, 214,
+    216, 216, 218, 218, 220, 218, 221, 223, 225, 218, 218, 218, 220, 220, 218,
+    218, 219, 228, 224, 222, 227, 228, 228, 228, 227, 240, 240, 244, 242, 248,
+    249, 253, 257} do
+  img:plot(i+29, 99-(math.log(v)/log10)*99/6)
+end
+img:color(7)
+for e = 0, 6 do
+  img:text(0, 91-e*89/6, '10'):text(16, 89-e*89/6, tostring(e))
+  img:rect(25, e*99/6, 2, 1)
+end
+for i = 0, 250, 50 do
+  img:text(29+i*(250-24)/250, 102, tostring(i))
+end
+for i = 0, 250, 10 do
+  img:color(i%50==0 and 7 or 6)
+  img:rect(i+29, i%50==0 and 98 or 100, 1, i%50==0 and 4 or 2)
+end
+return img:render()
+````
+
+From this point we can refine the obtained key via further methods in order
+to improve the results, in fact it can be easily modified so that it returns
+multiple keys, keys that can be used as starting points of the evolutionary
+algorithm previously developed (*).
+
+(*) The one used for the decryption of the book cover.</textarea>
+[<a href="javascript:showEditor(false)">cancel</a>] password: <input type="password" name="password"> [<input type="checkbox" name="private" value="1">private] <input type="submit" value="save changes"></form></div><script>document.title="wiki: msc/backtracking"</script>
+</pre></body></html>
